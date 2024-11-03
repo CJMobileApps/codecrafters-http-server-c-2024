@@ -93,8 +93,7 @@ int main() {
 
     // TODO this is a temp response
     const char *response =
-        "HTTP/1.1 200 OK\r\n\"
-        "\r\n";
+        "HTTP/1.1 200 OK\r\n\r\n";
 
     // Write and send response to the client
     const long writeRequestClient = write(new_socket, response, strlen(response));
