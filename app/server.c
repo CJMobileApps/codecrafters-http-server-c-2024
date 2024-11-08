@@ -323,7 +323,7 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
             // User-Agent: foobar/1.2.3
             char **userAgentArray = split_string_by_separator(serverRequest->requestUserAgent, &userAgentCount, " ");
             serverResponse->content = userAgentArray[1];
-            serverResponse->contentLength = (int) strlen(userAgentArray[1]);
+            serverResponse->contentLength = (int) strlen(userAgentArray[1]) - 1;
             serverResponse->contentType = "Content-Type: text/plain\r\n";
             setFoundOkServerResponse(serverResponse);
         } else {
