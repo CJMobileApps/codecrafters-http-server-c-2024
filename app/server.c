@@ -9,10 +9,26 @@
 
 #define BUFFER_SIZE 1024
 
+char *int_to_string(const int value) {
+    // Determine the length needed for the string (including the null terminator)
+    int length = snprintf(NULL, 0, "%d", value);
+
+    // Allocate memory for the string
+    char *result = (char *)malloc(length + 1);
+    if (result == NULL) {
+        return NULL;  // Handle allocation failure
+    }
+
+    // Convert the integer to a string
+    snprintf(result, length + 1, "%d", value);
+
+    return result;
+}
+
 // Function to split a string by spaces and return an array of tokens
-char **split_string_by_space(const char *input, int *out_count) {
+char **split_string_by_separator(const char *input, int *out_count, const char *separator) {
     int capacity = 10; // Initial capacity for the tokens array
-    int count = 0;     // Number of tokens found so far
+    int count = 0; // Number of tokens found so far
 
     // Allocate memory for the initial array of tokens
     // ReSharper disable once CppDFAMemoryLeak we free this when we return the function pointer
@@ -32,7 +48,7 @@ char **split_string_by_space(const char *input, int *out_count) {
     }
 
     // Get the first token from the input string (splits by spaces)
-    const char *token = strtok(input_copy, " ");
+    const char *token = strtok(input_copy, separator);
     while (token != NULL) {
         // Check if we need to expand the tokens array
         if (count >= capacity) {
@@ -69,11 +85,12 @@ typedef struct {
     char *content;
     char *statusCode;
     char *optionalReasonPhrase;
-//     val crlfStatusLine: String = "\r\n",
-//     // contentBytes: ByteArray? = null,
-//     // contentLength: String = "",
-//     // contentType: String = "",
-//     // encoding: String = "",
+    int contentLength;
+    char *contentType;
+    //     val crlfStatusLine: String = "\r\n",
+    //     // contentBytes: ByteArray? = null,
+    //     // contentType: String = "",
+    //     // encoding: String = "",
 } ServerResponse;
 
 ServerResponse *buildServerResponse() {
@@ -84,8 +101,13 @@ ServerResponse *buildServerResponse() {
 }
 
 
-char* getResponseBody(ServerResponse *serverResponse) {
-    char* responseBody = "";
+char *getResponseBody(ServerResponse *serverResponse) {
+    if(serverResponse == NULL) return "";
+    if(serverResponse->content == NULL) return "";
+
+    char *responseBody = malloc(strlen(serverResponse->content) + 1);
+    strcpy(responseBody, serverResponse->content);
+
     // if not gzip compression set responseBody
     // val responseBody = if(!encoding.contains(ServerState.AllowedEncoding.GZIP.name.lowercase())) {
     //
@@ -95,19 +117,19 @@ char* getResponseBody(ServerResponse *serverResponse) {
     return responseBody;
 }
 
-char* getStatusLine(const ServerResponse *serverResponse) {
+char *getStatusLine(const ServerResponse *serverResponse) {
     char *crlfStatusLine = "\r\n";
-    if(serverResponse == NULL) return crlfStatusLine;
+    if (serverResponse == NULL) return crlfStatusLine;
 
     const char *space = " ";
 
-    char* newString = malloc(strlen(serverResponse->httpVersion)
-        + strlen(serverResponse->statusCode)
-        + strlen(space)
-        + strlen(serverResponse->optionalReasonPhrase)
-        + strlen(space)
-        + strlen(crlfStatusLine)
-        + 1
+    char *newString = malloc(strlen(serverResponse->httpVersion)
+                             + strlen(serverResponse->statusCode)
+                             + strlen(space)
+                             + strlen(serverResponse->optionalReasonPhrase)
+                             + strlen(space)
+                             + strlen(crlfStatusLine)
+                             + 1
     );
 
     //return "$httpVersion $statusCode $optionalReasonPhrase$crlfStatusLine";
@@ -121,29 +143,59 @@ char* getStatusLine(const ServerResponse *serverResponse) {
     return newString;
 }
 
-char* getHeader(const ServerResponse *serverResponse) {
+char *getHeader(const ServerResponse *serverResponse) {
     // Headers (Empty)
-    char* crlfHeadersLine = "\r\n";
+    char *crlfHeadersLine = "\r\n";
 
-    if(serverResponse == NULL) return crlfHeadersLine;
+    if (serverResponse == NULL) return crlfHeadersLine;
 
-    if(serverResponse->content == NULL ||   strcmp(serverResponse->content, "") == 0) {
+    if (serverResponse->content == NULL || strcmp(serverResponse->content, "") == 0) {
         return crlfHeadersLine;
     }
 
-    //  val contentLength = "Content-Length: ${this.contentLength}\r\n"
-    //
-    //  val contentEncoding = if(encoding.isNotEmpty()) "Content-Encoding: $encoding\r\n" else ""
-    //
-    //  return "$contentType$contentEncoding$contentLength$crlfHeadersLine"
+    const char *contentLengthPreString = "Content-Length: ";
+    const char *contentLengthPostString = "\r\n";
 
-    return "";
+    char  *contentLengthToString = int_to_string(serverResponse->contentLength);
+
+    char *contentLength = malloc(
+        strlen(contentLengthPreString)
+        + strlen(contentLengthToString)
+        + strlen(contentLengthPostString)
+        + 1
+    );
+
+    // return "Content-Length: ${this.contentLength}\r\n";
+    strcpy(contentLength, contentLengthPreString);
+    strcat(contentLength, contentLengthToString);
+    strcat(contentLength, contentLengthPostString);
+
+
+    //todo update one day val contentEncoding = if(encoding.isNotEmpty()) "Content-Encoding: $encoding\r\n" else ""
+    const char* contentEncoding = "";
+
+    char* headerResponse = malloc(
+        strlen(serverResponse->contentType)
+        + strlen(contentEncoding)
+        + strlen(contentLength)
+        + strlen(crlfHeadersLine)
+        + 1
+    );
+    // return "$contentType$contentEncoding$contentLength$crlfHeadersLine"
+    strcpy(headerResponse, serverResponse->contentType);
+    strcat(headerResponse, contentEncoding);
+    strcat(headerResponse, contentLength);
+    strcat(headerResponse, crlfHeadersLine);
+
+
+    free(contentLengthToString);
+    return headerResponse;
 }
 
-char* getServerResponse(ServerResponse *serverResponse) {
+char *getServerResponse(ServerResponse *serverResponse) {
     char *statusLine = getStatusLine(serverResponse);
-    const char *header = getHeader(serverResponse);
-    const char *responseBody = getResponseBody(serverResponse);
+    char *header = getHeader(serverResponse);
+    char *responseBody = getResponseBody(serverResponse);
 
 
     const size_t size = strlen(statusLine) + strlen(header) + strlen(responseBody) + 1;
@@ -151,6 +203,10 @@ char* getServerResponse(ServerResponse *serverResponse) {
     strcpy(str, statusLine);
     strcat(str, header);
     strcat(str, responseBody);
+
+    free(responseBody);
+    free(header);
+    free(statusLine);
 
     return str;
 }
@@ -205,46 +261,65 @@ ServerRequest *parseClientRequest(char *line, char *savePtr) {
 }
 
 void setCreatedServerResponse(ServerResponse *serverResponse) {
-    if(serverResponse == NULL) return;
+    if (serverResponse == NULL) return;
 
     serverResponse->statusCode = "201";
     serverResponse->optionalReasonPhrase = "Created";
 }
 
 void setFoundOkServerResponse(ServerResponse *serverResponse) {
-    if(serverResponse == NULL) return;
+    if (serverResponse == NULL) return;
 
     serverResponse->statusCode = "200";
     serverResponse->optionalReasonPhrase = "OK";
 }
 
 void setNotFoundServerResponse(ServerResponse *serverResponse) {
-    if(serverResponse == NULL) return;
+    if (serverResponse == NULL) return;
 
     serverResponse->statusCode = "404";
     serverResponse->optionalReasonPhrase = "Not Found";
 }
 
 void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse *serverResponse) {
-    if(serverRequest == NULL) return;
+    if (serverRequest == NULL) return;
+    if (serverResponse == NULL) return;
 
-    int count; // Variable to store the number of tokens
+    int requestStatusLineArrayCount; // Variable to store the number of tokens
 
     // Call the split function and retrieve the tokens array
-    char **result = split_string_by_space(serverRequest->requestStatusLine, &count);
+    char **requestStatusLineArray = split_string_by_separator(serverRequest->requestStatusLine,
+                                                              &requestStatusLineArrayCount, " ");
 
-    if(count >= 2) {
-        if (strcmp(result[1], "/") == 0) {
+    if (requestStatusLineArrayCount >= 2) {
+        if (strcmp(requestStatusLineArray[1], "/") == 0) {
             setFoundOkServerResponse(serverResponse);
+        } else if (strstr(requestStatusLineArray[1], "/echo/") != NULL) {
+            int pathCount;
+
+            // echo/abc
+            char **pathArray = split_string_by_separator(requestStatusLineArray[1], &pathCount, "/");
+
+            if (pathCount <= 2) {
+                serverResponse->content = pathArray[1];
+                serverResponse->contentLength = (int) strlen(pathArray[1]);
+                //todo change serverResponse->contentLength to size_t
+                serverResponse->contentType = "Content-Type: text/plain\r\n";
+                setFoundOkServerResponse(serverResponse);
+            } else {
+                setNotFoundServerResponse(serverResponse);
+            }
+            //serverRequest->requestContentLength = line;
+            //printf("%s\n", serverRequest->requestContentLength);
         } else {
             setNotFoundServerResponse(serverResponse);
         }
     }
-    free(result);
+    free(requestStatusLineArray);
     // ReSharper disable once CppDFAMemoryLeak
 }
 
-void main() {
+int main() {
     // Disable output buffering
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
@@ -346,4 +421,5 @@ void main() {
     // Close the connection with the client
     close(new_socket);
     close(server_fd);
+    return 0;
 }
