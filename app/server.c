@@ -102,8 +102,11 @@ ServerResponse *buildServerResponse() {
 
 
 char *getResponseBody(ServerResponse *serverResponse) {
-    if(serverResponse == NULL) return "";
-    if(serverResponse->content == NULL) return "";
+    if(serverResponse == NULL || serverResponse->content == NULL) {
+        char *newString = malloc(strlen("") + 1);
+        strcpy(newString, "");
+        return newString;
+    }
 
     char *responseBody = malloc(strlen(serverResponse->content) + 1);
     strcpy(responseBody, serverResponse->content);
@@ -119,7 +122,11 @@ char *getResponseBody(ServerResponse *serverResponse) {
 
 char *getStatusLine(const ServerResponse *serverResponse) {
     char *crlfStatusLine = "\r\n";
-    if (serverResponse == NULL) return crlfStatusLine;
+    if (serverResponse == NULL) {
+        char *newString = malloc(strlen(crlfStatusLine) + 1);
+        strcpy(newString, crlfStatusLine);
+        return newString;
+    }
 
     const char *space = " ";
 
@@ -145,12 +152,12 @@ char *getStatusLine(const ServerResponse *serverResponse) {
 
 char *getHeader(const ServerResponse *serverResponse) {
     // Headers (Empty)
-    char *crlfHeadersLine = "\r\n";
+    const char *crlfHeadersLine = "\r\n";
 
-    if (serverResponse == NULL) return crlfHeadersLine;
-
-    if (serverResponse->content == NULL || strcmp(serverResponse->content, "") == 0) {
-        return crlfHeadersLine;
+    if (serverResponse == NULL || serverResponse->content == NULL || strcmp(serverResponse->content, "") == 0) {
+        char *contentLength = malloc(strlen(crlfHeadersLine) + 1);
+        strcpy(contentLength, crlfHeadersLine);
+        return contentLength;
     }
 
     const char *contentLengthPreString = "Content-Length: ";
@@ -303,7 +310,6 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
             if (pathCount <= 2) {
                 serverResponse->content = pathArray[1];
                 serverResponse->contentLength = (int) strlen(pathArray[1]);
-                //todo change serverResponse->contentLength to size_t
                 serverResponse->contentType = "Content-Type: text/plain\r\n";
                 setFoundOkServerResponse(serverResponse);
             } else {
@@ -311,6 +317,15 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
             }
             //serverRequest->requestContentLength = line;
             //printf("%s\n", serverRequest->requestContentLength);
+        } else if (strstr(requestStatusLineArray[1], "user-agent") != NULL) {
+            int userAgentCount;
+
+            // User-Agent: foobar/1.2.3
+            char **userAgentArray = split_string_by_separator(serverRequest->requestUserAgent, &userAgentCount, " ");
+            serverResponse->content = userAgentArray[1];
+            serverResponse->contentLength = (int) strlen(userAgentArray[1]);
+            serverResponse->contentType = "Content-Type: text/plain\r\n";
+            setFoundOkServerResponse(serverResponse);
         } else {
             setNotFoundServerResponse(serverResponse);
         }
