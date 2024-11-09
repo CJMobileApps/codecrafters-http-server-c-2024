@@ -172,7 +172,8 @@ char *getHeader(const ServerResponse *serverResponse) {
 
     if (serverResponse == NULL || serverResponse->content == NULL || strcmp(serverResponse->content, "") == 0) {
         char *contentLength = malloc(strlen(crlfHeadersLine) + 1);
-        strcpy(contentLength, crlfHeadersLine);
+        //strcpy(contentLength, crlfHeadersLine);
+        strcpy(contentLength, "Content-Length: 0\r\n");
         return contentLength;
     }
 
