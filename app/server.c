@@ -6,6 +6,8 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <stdbool.h>
 
 #define BUFFER_SIZE 1024
 
@@ -334,7 +336,7 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
     // ReSharper disable once CppDFAMemoryLeak
 }
 
-int main() {
+void *createServer() {
     // Disable output buffering
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
@@ -436,5 +438,19 @@ int main() {
     // Close the connection with the client
     close(new_socket);
     close(server_fd);
+}
+
+int main() {
+
+    while(true) {
+
+        pthread_t thread;
+
+        pthread_create(&thread, NULL, createServer, NULL);
+
+        pthread_join(thread, NULL);
+    }
+
+
     return 0;
 }
