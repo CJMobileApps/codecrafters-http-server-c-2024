@@ -8,29 +8,19 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <stdbool.h>
-#include <semaphore.h>
 
-//#define BUFFER_SIZE 1024
-#define BUFFER_SIZE 6144
+#define BUFFER_SIZE 1024
 #define MAX_CONCURRENT_CONNECTIONS 5  // Limit to 5 concurrent connections
-
-// Descriptive constants for semaphore configuration
-#define SEM_NAME "/my_semaphore"      // Name of the semaphore
-#define SEM_FLAGS (O_CREAT)           // Flags for creating the semaphore
-#define SEM_PERMISSIONS 0644          // Permissions for the semaphore
-#define SEM_INITIAL_VALUE 3          // Initial value of the semaphore (binary semaphore)
-sem_t *connection_sem;  // Semaphore to limit the number of concurrent connections
 
 pthread_mutex_t connection_mutex = PTHREAD_MUTEX_INITIALIZER;  // Mutex to protect the active_connections counter
 int active_connections = 0;  // Shared counter to track the number of active connections
-
 
 char *int_to_string(const int value) {
     // Determine the length needed for the string (including the null terminator)
     int length = snprintf(NULL, 0, "%d", value);
 
     // Allocate memory for the string
-    char *result = (char *)malloc(length + 1);
+    char *result = malloc(length + 1);
     if (result == NULL) {
         return NULL;  // Handle allocation failure
     }
@@ -312,8 +302,11 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
     int requestStatusLineArrayCount; // Variable to store the number of tokens
 
     // Call the split function and retrieve the tokens array
-    char **requestStatusLineArray = split_string_by_separator(serverRequest->requestStatusLine,
-                                                              &requestStatusLineArrayCount, " ");
+    char **requestStatusLineArray = split_string_by_separator(
+        serverRequest->requestStatusLine,
+        requestStatusLineArrayCount,
+        " "
+    );
 
     if (requestStatusLineArrayCount >= 2) {
         if (strcmp(requestStatusLineArray[1], "/") == 0) {
@@ -338,8 +331,6 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                 serverResponse->contentType = "Content-Type: text/plain\r\n";
                 setNotFoundServerResponse(serverResponse);
             }
-            //serverRequest->requestContentLength = line;
-            //printf("%s\n", serverRequest->requestContentLength);
         } else if (strstr(requestStatusLineArray[1], "user-agent") != NULL) {
             int userAgentCount;
 
@@ -365,23 +356,11 @@ void *createServer(int server_fd, char *buffer);
 // Wrapper function to call createServer
 void* threadWrapper(void* arg) {
     printf("Waiting for a client to connect...\n");
-    int server_fd = *((int*)arg);  // Unpack the server_fd from the passed argument
+    const int server_fd = *((int*)arg);  // Unpack the server_fd from the passed argument
     char buffer[BUFFER_SIZE] = {0}; // Buffer for reading requests
-
-    // Wait for the semaphore before handling the client connection
-    //printf("semaphore wait is being called multiple times\n");
-    //sem_wait(connection_sem);  // Decrement semaphore, blocking if it's 0
 
     // Wait for the active_connections to be less than the maximum allowed
     pthread_mutex_lock(&connection_mutex);
-    // while (active_connections >= MAX_CONCURRENT_CONNECTIONS) { //TODO use this in while loop
-    //     // Wait for available slots (this will release the mutex and sleep, then acquire it again)
-    //     pthread_mutex_unlock(&connection_mutex);
-    //     usleep(1000); // Sleep for a short time before checking again
-    //     pthread_mutex_lock(&connection_mutex);
-    // }
-
-    // Increment the active_connections counter
     active_connections++;
     pthread_mutex_unlock(&connection_mutex);
 
@@ -444,13 +423,8 @@ void *createServer(int server_fd, char *buffer) {
     free(serverResponse);
     free(serverRequest);
 
-
     // Close the connection with the client
     close(new_socket);
-    //close(server_fd);
-
-    // Signal the semaphore to allow other threads to run
-    //sem_post(connection_sem);  // Release the semaphore
 
     // Decrement the active_connections counter after finishing the request
     pthread_mutex_lock(&connection_mutex);
@@ -464,17 +438,9 @@ int main() {
     // Disable output buffering
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
-    char buffer[BUFFER_SIZE] = {0};
 
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     printf("Logs from your program will appear here!\n");
-
-    // Open a named semaphore (if it doesn't exist, it will be created)
-    connection_sem = sem_open(SEM_NAME, SEM_FLAGS, SEM_PERMISSIONS, SEM_INITIAL_VALUE);
-    if (connection_sem == SEM_FAILED) {
-        perror("Semaphore initialization failed");
-        exit(EXIT_FAILURE);
-    }
 
     // Create socket file descriptor
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -516,25 +482,13 @@ int main() {
     while(true) {
 
         pthread_t thread;
-        // sem_wait(connection_sem);
 
-        //printf("create thread 1 active connections:%d\n", active_connections);
         if(active_connections > MAX_CONCURRENT_CONNECTIONS) continue;
         printf("active_connections: %d\n", active_connections);
-        //printf("create thread 1 active cotinue not called:%d\n", active_connections);
-
         pthread_create(&thread, NULL, threadWrapper, &server_fd);
-        //sleep(2);
-        //printf("detatch thread 1\n");
         pthread_detach(thread);
     }
 
-    // Cleanup the semaphore (this will never be reached)
-    sem_destroy(connection_sem);// Cleanup the semaphore (this will never be reached)
-
-    // Unlink the semaphore (removes it from the system)
-    sem_unlink(SEM_NAME);
-
-    //free(server_fd);
+    //free(server_fd); (this will never be reached)
     return 0;
 }
