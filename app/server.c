@@ -170,10 +170,10 @@ char *getHeader(const ServerResponse *serverResponse) {
     // Headers (Empty)
     const char *crlfHeadersLine = "\r\n";
 
-    if (serverResponse == NULL || serverResponse->content == NULL || strcmp(serverResponse->content, "") == 0) {
+    if (serverResponse == NULL) {
         char *contentLength = malloc(strlen(crlfHeadersLine) + 1);
         //strcpy(contentLength, crlfHeadersLine);
-        strcpy(contentLength, "Content-Length: 0\r\n");
+        //strcpy(contentLength, "Content-Length: 0\r\n");
         return contentLength;
     }
 
@@ -317,6 +317,9 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
 
     if (requestStatusLineArrayCount >= 2) {
         if (strcmp(requestStatusLineArray[1], "/") == 0) {
+            serverResponse->content = "";
+            serverResponse->contentLength = (int) strlen("");
+            serverResponse->contentType = "Content-Type: text/plain\r\n";
             setFoundOkServerResponse(serverResponse);
         } else if (strstr(requestStatusLineArray[1], "/echo/") != NULL) {
             int pathCount;
