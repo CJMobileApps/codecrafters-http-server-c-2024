@@ -333,6 +333,9 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                 serverResponse->contentType = "Content-Type: text/plain\r\n";
                 setFoundOkServerResponse(serverResponse);
             } else {
+                serverResponse->content = "";
+                serverResponse->contentLength = (int) strlen("");
+                serverResponse->contentType = "Content-Type: text/plain\r\n";
                 setNotFoundServerResponse(serverResponse);
             }
             //serverRequest->requestContentLength = line;
@@ -347,6 +350,9 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
             serverResponse->contentType = "Content-Type: text/plain\r\n";
             setFoundOkServerResponse(serverResponse);
         } else {
+            serverResponse->content = "";
+            serverResponse->contentLength = (int) strlen("");
+            serverResponse->contentType = "Content-Type: text/plain\r\n";
             setNotFoundServerResponse(serverResponse);
         }
     }
