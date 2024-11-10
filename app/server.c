@@ -288,6 +288,14 @@ void setFoundOkServerResponse(ServerResponse *serverResponse) {
     serverResponse->optionalReasonPhrase = "OK";
 }
 
+void setContentTextPlainServerResponse(ServerResponse *serverResponse, char *content) {
+    if (serverResponse == NULL) return;
+
+    serverResponse->content = content;
+    serverResponse->contentLength = (int) strlen(content);
+    serverResponse->contentType = "Content-Type: text/plain\r\n";
+}
+
 void setNotFoundServerResponse(ServerResponse *serverResponse) {
     if (serverResponse == NULL) return;
 
@@ -310,9 +318,7 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
 
     if (requestStatusLineArrayCount >= 2) {
         if (strcmp(requestStatusLineArray[1], "/") == 0) {
-            serverResponse->content = "";
-            serverResponse->contentLength = (int) strlen("");
-            serverResponse->contentType = "Content-Type: text/plain\r\n";
+            setContentTextPlainServerResponse(serverResponse, "");
             setFoundOkServerResponse(serverResponse);
         } else if (strstr(requestStatusLineArray[1], "/echo/") != NULL) {
             int pathCount;
@@ -321,14 +327,10 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
             char **pathArray = split_string_by_separator(requestStatusLineArray[1], &pathCount, "/");
 
             if (pathCount <= 2) {
-                serverResponse->content = pathArray[1];
-                serverResponse->contentLength = (int) strlen(pathArray[1]);
-                serverResponse->contentType = "Content-Type: text/plain\r\n";
+                setContentTextPlainServerResponse(serverResponse, pathArray[1]);
                 setFoundOkServerResponse(serverResponse);
             } else {
-                serverResponse->content = "";
-                serverResponse->contentLength = (int) strlen("");
-                serverResponse->contentType = "Content-Type: text/plain\r\n";
+                setContentTextPlainServerResponse(serverResponse, "");
                 setNotFoundServerResponse(serverResponse);
             }
         } else if (strstr(requestStatusLineArray[1], "/user-agent") != NULL) {
@@ -361,9 +363,7 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                 FILE *file = fopen(fileName, "r");
                 if (file == NULL) {
                     perror("Error opening file");
-                    serverResponse->content = "";
-                    serverResponse->contentLength = (int) strlen("");
-                    serverResponse->contentType = "Content-Type: text/plain\r\n";
+                    setContentTextPlainServerResponse(serverResponse, "");
                     setNotFoundServerResponse(serverResponse);
                     return;
                 }
@@ -389,15 +389,11 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                 serverResponse->contentType = "Content-Type: application/octet-stream\r\n";
                 setFoundOkServerResponse(serverResponse);
             } else {
-                serverResponse->content = "";
-                serverResponse->contentLength = (int) strlen("");
-                serverResponse->contentType = "Content-Type: text/plain\r\n";
+                setContentTextPlainServerResponse(serverResponse, "");
                 setNotFoundServerResponse(serverResponse);
             }
         } else {
-            serverResponse->content = "";
-            serverResponse->contentLength = (int) strlen("");
-            serverResponse->contentType = "Content-Type: text/plain\r\n";
+            setContentTextPlainServerResponse(serverResponse, "");
             setNotFoundServerResponse(serverResponse);
         }
     }
