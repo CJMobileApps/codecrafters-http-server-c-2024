@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/ip.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
@@ -11,9 +10,10 @@
 
 #define BUFFER_SIZE 1024
 #define MAX_CONCURRENT_CONNECTIONS 5  // Limit to 5 concurrent connections
+char directoryName[256] = "";
 
-pthread_mutex_t connection_mutex = PTHREAD_MUTEX_INITIALIZER;  // Mutex to protect the active_connections counter
-int active_connections = 0;  // Shared counter to track the number of active connections
+pthread_mutex_t connection_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex to protect the active_connections counter
+int active_connections = 0; // Shared counter to track the number of active connections
 
 char *int_to_string(const int value) {
     // Determine the length needed for the string (including the null terminator)
@@ -22,7 +22,7 @@ char *int_to_string(const int value) {
     // Allocate memory for the string
     char *result = malloc(length + 1);
     if (result == NULL) {
-        return NULL;  // Handle allocation failure
+        return NULL; // Handle allocation failure
     }
 
     // Convert the integer to a string
@@ -108,7 +108,7 @@ ServerResponse *buildServerResponse() {
 
 
 char *getResponseBody(ServerResponse *serverResponse) {
-    if(serverResponse == NULL || serverResponse->content == NULL) {
+    if (serverResponse == NULL || serverResponse->content == NULL) {
         char *newString = malloc(strlen("") + 1);
         strcpy(newString, "");
         return newString;
@@ -170,7 +170,7 @@ char *getHeader(const ServerResponse *serverResponse) {
     const char *contentLengthPreString = "Content-Length: ";
     const char *contentLengthPostString = "\r\n";
 
-    char  *contentLengthToString = int_to_string(serverResponse->contentLength);
+    char *contentLengthToString = int_to_string(serverResponse->contentLength);
 
     char *contentLength = malloc(
         strlen(contentLengthPreString)
@@ -186,9 +186,9 @@ char *getHeader(const ServerResponse *serverResponse) {
 
 
     //todo update one day val contentEncoding = if(encoding.isNotEmpty()) "Content-Encoding: $encoding\r\n" else ""
-    const char* contentEncoding = "";
+    const char *contentEncoding = "";
 
-    char* headerResponse = malloc(
+    char *headerResponse = malloc(
         strlen(serverResponse->contentType)
         + strlen(contentEncoding)
         + strlen(contentLength)
@@ -299,12 +299,12 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
     if (serverRequest == NULL) return;
     if (serverResponse == NULL) return;
 
-    int requestStatusLineArrayCount; // Variable to store the number of tokens
+    int requestStatusLineArrayCount = 0; // Variable to store the number of tokens
 
     // Call the split function and retrieve the tokens array
     char **requestStatusLineArray = split_string_by_separator(
         serverRequest->requestStatusLine,
-        requestStatusLineArrayCount,
+        &requestStatusLineArrayCount,
         " "
     );
 
@@ -331,7 +331,7 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                 serverResponse->contentType = "Content-Type: text/plain\r\n";
                 setNotFoundServerResponse(serverResponse);
             }
-        } else if (strstr(requestStatusLineArray[1], "user-agent") != NULL) {
+        } else if (strstr(requestStatusLineArray[1], "/user-agent") != NULL) {
             int userAgentCount;
 
             // User-Agent: foobar/1.2.3
@@ -340,6 +340,56 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
             serverResponse->contentLength = (int) strlen(userAgentArray[1]) - 1;
             serverResponse->contentType = "Content-Type: text/plain\r\n";
             setFoundOkServerResponse(serverResponse);
+        } else if (strstr(requestStatusLineArray[1], "/files/") != NULL) {
+            int pathCount;
+
+            // echo/abc
+            char **pathArray = split_string_by_separator(requestStatusLineArray[1], &pathCount, "/");
+
+            if (pathCount <= 2) {
+                printf("We got here buddy: %s\n", pathArray[1]);
+                char *fileName = malloc(
+                    strlen(directoryName)
+                    + strlen(pathArray[1])
+                    + 1
+                );
+
+                // return "Content-Length: ${this.contentLength}\r\n";
+                strcpy(fileName, directoryName);
+                strcat(fileName, pathArray[1]);
+
+                FILE *file = fopen(fileName, "r");
+                if (file == NULL) {
+                    perror("Error opening file");
+                    return;
+                }
+
+                // Define a buffer and read the file in chunks
+                // Dynamically allocate the buffer
+                const size_t bufferSize = 1024;
+                size_t bytesRead;
+                char *buffer = malloc(bufferSize);
+
+                while ((bytesRead = fread(buffer, 1, bufferSize, file)) > 0) {
+                    // Write the buffer contents to standard output
+                    fwrite(buffer, 1, bytesRead, stdout);
+                }
+
+                printf("We got here buddy2: %s\n", buffer);
+
+
+                fclose(file);
+
+                serverResponse->content = buffer;
+                serverResponse->contentLength = (int) strlen(buffer);
+                serverResponse->contentType = "Content-Type: application/octet-stream\r\n";
+                setFoundOkServerResponse(serverResponse);
+            } else {
+                serverResponse->content = "";
+                serverResponse->contentLength = (int) strlen("");
+                serverResponse->contentType = "Content-Type: text/plain\r\n";
+                setNotFoundServerResponse(serverResponse);
+            }
         } else {
             serverResponse->content = "";
             serverResponse->contentLength = (int) strlen("");
@@ -354,9 +404,9 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
 void *createServer(int server_fd, char *buffer);
 
 // Wrapper function to call createServer
-void* threadWrapper(void* arg) {
+void *threadWrapper(void *arg) {
     printf("Waiting for a client to connect...\n");
-    const int server_fd = *((int*)arg);  // Unpack the server_fd from the passed argument
+    const int server_fd = *(int *) arg; // Unpack the server_fd from the passed argument
     char buffer[BUFFER_SIZE] = {0}; // Buffer for reading requests
 
     // Wait for the active_connections to be less than the maximum allowed
@@ -434,13 +484,28 @@ void *createServer(int server_fd, char *buffer) {
     return NULL;
 }
 
-int main() {
+// argc: (argument count)
+// argv: (argument vector) is an array of C strings (character pointers) that represents each argument passed to the program.
+int main(int argc, char *argv[]) {
     // Disable output buffering
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
 
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     printf("Logs from your program will appear here!\n");
+
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--directory") == 0 && i + 1 < argc) {
+            // Copy the next argument as the directory path
+            strncpy(directoryName, argv[i + 1], sizeof(directoryName) - 1);
+            directoryName[sizeof(directoryName) - 1] = '\0'; // Null-terminate to avoid overflow
+            break;
+        }
+    }
+
+    if (strlen(directoryName) > 1) {
+        printf("args --directory name is %s\n", directoryName);
+    }
 
     // Create socket file descriptor
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -479,11 +544,10 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    while(true) {
-
+    while (true) {
         pthread_t thread;
 
-        if(active_connections > MAX_CONCURRENT_CONNECTIONS) continue;
+        if (active_connections > MAX_CONCURRENT_CONNECTIONS) continue;
         printf("active_connections: %d\n", active_connections);
         pthread_create(&thread, NULL, threadWrapper, &server_fd);
         pthread_detach(thread);
