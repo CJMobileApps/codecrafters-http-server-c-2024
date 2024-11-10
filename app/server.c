@@ -107,7 +107,7 @@ ServerResponse *buildServerResponse() {
 }
 
 
-char *getResponseBody(ServerResponse *serverResponse) {
+char *getResponseBody(const ServerResponse *serverResponse) {
     if (serverResponse == NULL || serverResponse->content == NULL) {
         char *newString = malloc(strlen("") + 1);
         strcpy(newString, "");
@@ -338,6 +338,7 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
 
             // User-Agent: foobar/1.2.3
             char **userAgentArray = split_string_by_separator(serverRequest->requestUserAgent, &userAgentCount, " ");
+
             serverResponse->content = userAgentArray[1];
             serverResponse->contentLength = (int) strlen(userAgentArray[1]) - 1;
             serverResponse->contentType = "Content-Type: text/plain\r\n";
@@ -349,7 +350,6 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
             char **pathArray = split_string_by_separator(requestStatusLineArray[1], &pathCount, "/");
 
             if (pathCount <= 2) {
-                printf("We got here buddy: %s\n", pathArray[1]);
                 char *fileName = malloc(
                     strlen(directoryName)
                     + strlen(pathArray[1])
@@ -378,8 +378,6 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                     // Write the buffer contents to standard output
                     fwrite(buffer, 1, bytesRead, stdout);
                 }
-
-                printf("We got here buddy2: %s\n", buffer);
 
 
                 fclose(file);
