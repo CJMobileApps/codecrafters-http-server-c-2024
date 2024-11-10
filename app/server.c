@@ -127,7 +127,7 @@ char *getResponseBody(const ServerResponse *serverResponse) {
 }
 
 char *getStatusLine(const ServerResponse *serverResponse) {
-    char *crlfStatusLine = "\r\n";
+    const char *crlfStatusLine = "\r\n";
     if (serverResponse == NULL) {
         char *newString = malloc(strlen(crlfStatusLine) + 1);
         strcpy(newString, crlfStatusLine);
@@ -184,7 +184,6 @@ char *getHeader(const ServerResponse *serverResponse) {
     strcat(contentLength, contentLengthToString);
     strcat(contentLength, contentLengthPostString);
 
-
     //todo update one day val contentEncoding = if(encoding.isNotEmpty()) "Content-Encoding: $encoding\r\n" else ""
     const char *contentEncoding = "";
 
@@ -206,7 +205,7 @@ char *getHeader(const ServerResponse *serverResponse) {
     return headerResponse;
 }
 
-char *getServerResponse(ServerResponse *serverResponse) {
+char *getServerResponse(const ServerResponse *serverResponse) {
     char *statusLine = getStatusLine(serverResponse);
     char *header = getHeader(serverResponse);
     char *responseBody = getResponseBody(serverResponse);
@@ -339,9 +338,15 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
             // User-Agent: foobar/1.2.3
             char **userAgentArray = split_string_by_separator(serverRequest->requestUserAgent, &userAgentCount, " ");
 
-            serverResponse->content = userAgentArray[1];
-            serverResponse->contentLength = (int) strlen(userAgentArray[1]) - 1;
-            serverResponse->contentType = "Content-Type: text/plain\r\n";
+            char *userAgent = userAgentArray[1];
+
+            // Remove last character I think it's a space
+            const size_t len = strlen(userAgent);
+            if (len > 0) {
+                userAgent[len - 1] = '\0'; // Replace the last character with the null terminator
+            }
+
+            setContentTextPlainServerResponse(serverResponse, userAgent);
             setFoundOkServerResponse(serverResponse);
         } else if (strstr(requestStatusLineArray[1], "/files/") != NULL) {
             int pathCount;
@@ -417,7 +422,7 @@ void *threadWrapper(void *arg) {
     return NULL;
 }
 
-void *createServer(int server_fd, char *buffer) {
+void *createServer(const int server_fd, char *buffer) {
     int client_addr_len;
 
     int new_socket;
@@ -484,7 +489,7 @@ void *createServer(int server_fd, char *buffer) {
 
 // argc: (argument count)
 // argv: (argument vector) is an array of C strings (character pointers) that represents each argument passed to the program.
-int main(int argc, char *argv[]) {
+int main(const int argc, char *argv[]) {
     // Disable output buffering
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
