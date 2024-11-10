@@ -361,6 +361,10 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                 FILE *file = fopen(fileName, "r");
                 if (file == NULL) {
                     perror("Error opening file");
+                    serverResponse->content = "";
+                    serverResponse->contentLength = (int) strlen("");
+                    serverResponse->contentType = "Content-Type: text/plain\r\n";
+                    setNotFoundServerResponse(serverResponse);
                     return;
                 }
 
