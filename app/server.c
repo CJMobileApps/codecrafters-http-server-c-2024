@@ -282,6 +282,7 @@ ServerRequest *parseClientRequest(char *line, char *savePtr) {
             printf("%s\n", serverRequest->requestContentEncoding);
         }
 
+        // get request body from POST
         if(strlen(line) == serverRequest->contentLength) {
             serverRequest->requestContent = line;
             printf("%s\n", serverRequest->requestContent);
@@ -425,7 +426,6 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                     setContentOctetStreamServerResponse(serverResponse, buffer);
                     setFoundOkServerResponse(serverResponse);
                 } else if (strstr(serverRequest->requestStatusLine, "POST") != NULL) {
-                    // printf("Did we get here POST %s\n ", serverRequest->requestStatusLine);
                     char *fileName = malloc(
                         strlen(directoryName)
                         + strlen(pathArray[1])
@@ -514,9 +514,6 @@ void *createServer(const int server_fd, char *buffer) {
     char *line = strtok_r(buffer, "\n", &savePtr); // Get the first line
 
     ServerRequest *serverRequest = parseClientRequest(line, savePtr);
-
-    //todo read request body
-
 
     ServerResponse *serverResponse = buildServerResponse();
 
