@@ -414,11 +414,13 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                     strcpy(fileName, directoryName);
                     strcat(fileName, pathArray[1]);
 
-                    FILE *file = fopen(fileName, "w");
+                    FILE *file = fopen(fileName, "w+");
                     if (file == NULL) {
                         perror("Error opening file");
                         return;
                     }
+
+                    printf("Data Data Data%s\n", data);
 
                     const size_t bytesWritten = fwrite(data, sizeof(char), strlen(data), file);
                     if (bytesWritten != strlen(data)) {
