@@ -425,6 +425,7 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                     setContentOctetStreamServerResponse(serverResponse, buffer);
                     setFoundOkServerResponse(serverResponse);
                 } else if (strstr(serverRequest->requestStatusLine, "POST") != NULL) {
+                    // printf("Did we get here POST %s\n ", serverRequest->requestStatusLine);
                     char *fileName = malloc(
                         strlen(directoryName)
                         + strlen(pathArray[1])
@@ -446,12 +447,9 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
 
                     free(fileName);
                     fclose(file);
-
+                    setContentTextPlainServerResponse(serverResponse, "");
+                    setCreated201ServerResponse(serverResponse);
                 }
-
-                setContentTextPlainServerResponse(serverResponse, "");
-                setCreated201ServerResponse(serverResponse);
-
             } else {
                 setContentTextPlainServerResponse(serverResponse, "");
                 setNotFoundServerResponse(serverResponse);
