@@ -11,6 +11,7 @@
 #define BUFFER_SIZE 1024
 #define MAX_CONCURRENT_CONNECTIONS 5  // Limit to 5 concurrent connections
 char directoryName[256] = "";
+char data[512] = "";
 
 pthread_mutex_t connection_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex to protect the active_connections counter
 int active_connections = 0; // Shared counter to track the number of active connections
@@ -287,6 +288,14 @@ void setFoundOkServerResponse(ServerResponse *serverResponse) {
     serverResponse->optionalReasonPhrase = "OK";
 }
 
+void setContentOctetStreamServerResponse(ServerResponse *serverResponse, char *content) {
+    if (serverResponse == NULL) return;
+
+    serverResponse->content = content;
+    serverResponse->contentLength = (int) strlen(content);
+    serverResponse->contentType = "Content-Type: application/octet-stream\r\n";
+}
+
 void setContentTextPlainServerResponse(ServerResponse *serverResponse, char *content) {
     if (serverResponse == NULL) return;
 
@@ -300,6 +309,13 @@ void setNotFoundServerResponse(ServerResponse *serverResponse) {
 
     serverResponse->statusCode = "404";
     serverResponse->optionalReasonPhrase = "Not Found";
+}
+
+void setCreated201ServerResponse(ServerResponse *serverResponse) {
+    if (serverResponse == NULL) return;
+
+    serverResponse->statusCode = "201";
+    serverResponse->optionalReasonPhrase = "Created";
 }
 
 void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse *serverResponse) {
@@ -355,42 +371,68 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
             char **pathArray = split_string_by_separator(requestStatusLineArray[1], &pathCount, "/");
 
             if (pathCount <= 2) {
-                char *fileName = malloc(
-                    strlen(directoryName)
-                    + strlen(pathArray[1])
-                    + 1
-                );
+                if (strstr(serverRequest->requestStatusLine, "GET") != NULL) {
+                    char *fileName = malloc(
+                        strlen(directoryName)
+                        + strlen(pathArray[1])
+                        + 1
+                    );
 
-                // return "Content-Length: ${this.contentLength}\r\n";
-                strcpy(fileName, directoryName);
-                strcat(fileName, pathArray[1]);
+                    strcpy(fileName, directoryName);
+                    strcat(fileName, pathArray[1]);
 
-                FILE *file = fopen(fileName, "r");
-                if (file == NULL) {
-                    perror("Error opening file");
-                    setContentTextPlainServerResponse(serverResponse, "");
-                    setNotFoundServerResponse(serverResponse);
-                    return;
+                    FILE *file = fopen(fileName, "r");
+                    if (file == NULL) {
+                        perror("Error opening file");
+                        setContentTextPlainServerResponse(serverResponse, "");
+                        setNotFoundServerResponse(serverResponse);
+                        return;
+                    }
+
+                    // Define a buffer and read the file in chunks
+                    // Dynamically allocate the buffer
+                    const size_t bufferSize = 1024;
+                    size_t bytesRead;
+                    char *buffer = malloc(bufferSize);
+
+                    while ((bytesRead = fread(buffer, 1, bufferSize, file)) > 0) {
+                        // Write the buffer contents to standard output
+                        fwrite(buffer, 1, bytesRead, stdout);
+                    }
+
+
+                    fclose(file);
+
+                    setContentOctetStreamServerResponse(serverResponse, buffer);
+                    setFoundOkServerResponse(serverResponse);
+                } else if (strstr(serverRequest->requestStatusLine, "POST") != NULL) {
+                    char *fileName = malloc(
+                        strlen(directoryName)
+                        + strlen(pathArray[1])
+                        + 1
+                    );
+                    strcpy(fileName, directoryName);
+                    strcat(fileName, pathArray[1]);
+
+                    FILE *file = fopen(fileName, "w");
+                    if (file == NULL) {
+                        perror("Error opening file");
+                        return;
+                    }
+
+                    const size_t bytesWritten = fwrite(data, sizeof(char), strlen(data), file);
+                    if (bytesWritten != strlen(data)) {
+                        perror("Error writing to file");
+                    }
+
+                    free(fileName);
+                    fclose(file);
+
                 }
 
-                // Define a buffer and read the file in chunks
-                // Dynamically allocate the buffer
-                const size_t bufferSize = 1024;
-                size_t bytesRead;
-                char *buffer = malloc(bufferSize);
+                setContentTextPlainServerResponse(serverResponse, "");
+                setCreated201ServerResponse(serverResponse);
 
-                while ((bytesRead = fread(buffer, 1, bufferSize, file)) > 0) {
-                    // Write the buffer contents to standard output
-                    fwrite(buffer, 1, bytesRead, stdout);
-                }
-
-
-                fclose(file);
-
-                serverResponse->content = buffer;
-                serverResponse->contentLength = (int) strlen(buffer);
-                serverResponse->contentType = "Content-Type: application/octet-stream\r\n";
-                setFoundOkServerResponse(serverResponse);
             } else {
                 setContentTextPlainServerResponse(serverResponse, "");
                 setNotFoundServerResponse(serverResponse);
@@ -502,6 +544,13 @@ int main(const int argc, char *argv[]) {
             // Copy the next argument as the directory path
             strncpy(directoryName, argv[i + 1], sizeof(directoryName) - 1);
             directoryName[sizeof(directoryName) - 1] = '\0'; // Null-terminate to avoid overflow
+            break;
+        }
+
+        if (strcmp(argv[i], "--data") == 0 && i + 1 < argc) {
+            // Copy the next argument as the directory path
+            strncpy(data, argv[i + 1], sizeof(data) - 1);
+            data[sizeof(data) - 1] = '\0'; // Null-terminate to avoid overflow
             break;
         }
     }
