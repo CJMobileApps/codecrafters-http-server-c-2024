@@ -11,7 +11,6 @@
 #define BUFFER_SIZE 1024
 #define MAX_CONCURRENT_CONNECTIONS 5  // Limit to 5 concurrent connections
 char directoryName[256] = "";
-char data[512] = "";
 
 pthread_mutex_t connection_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex to protect the active_connections counter
 int active_connections = 0; // Shared counter to track the number of active connections
@@ -231,8 +230,10 @@ typedef struct {
     char *requestUserAgent;
     char *requestHeader;
     char *requestContentLength;
+    long contentLength;
     char *requestBody;
     char *requestContentEncoding;
+    char *requestContent;
 } ServerRequest;
 
 ServerRequest *parseClientRequest(char *line, char *savePtr) {
@@ -260,12 +261,30 @@ ServerRequest *parseClientRequest(char *line, char *savePtr) {
 
         if (strstr(line, "Content-Length: ") != NULL) {
             serverRequest->requestContentLength = line;
+
+            int pathCount;
+
+            // echo/abc
+            char **pathArray = split_string_by_separator(line, &pathCount, " ");
+
+            if (pathCount >= 2) {
+                char *end;
+                const long contentLength = strtol(pathArray[1], &end, 10);
+                serverRequest->contentLength = contentLength;
+            }
+
+            free(pathArray);
             printf("%s\n", serverRequest->requestContentLength);
         }
 
         if (strstr(line, "Accept-Encoding: ") != NULL) {
             serverRequest->requestContentEncoding = line;
             printf("%s\n", serverRequest->requestContentEncoding);
+        }
+
+        if(strlen(line) == serverRequest->contentLength) {
+            serverRequest->requestContent = line;
+            printf("%s\n", serverRequest->requestContent);
         }
 
         line = strtok_r(NULL, "\n", &savePtr);
@@ -420,10 +439,8 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                         return;
                     }
 
-                    printf("Data Data Data%s\n", data);
-
-                    const size_t bytesWritten = fwrite(data, sizeof(char), strlen(data), file);
-                    if (bytesWritten != strlen(data)) {
+                    const size_t bytesWritten = fwrite(serverRequest->requestContent, sizeof(char), strlen(serverRequest->requestContent), file);
+                    if (bytesWritten != strlen(serverRequest->requestContent)) {
                         perror("Error writing to file");
                     }
 
@@ -500,6 +517,9 @@ void *createServer(const int server_fd, char *buffer) {
 
     ServerRequest *serverRequest = parseClientRequest(line, savePtr);
 
+    //todo read request body
+
+
     ServerResponse *serverResponse = buildServerResponse();
 
     buildResponseStatusLine(serverRequest, serverResponse);
@@ -546,13 +566,6 @@ int main(const int argc, char *argv[]) {
             // Copy the next argument as the directory path
             strncpy(directoryName, argv[i + 1], sizeof(directoryName) - 1);
             directoryName[sizeof(directoryName) - 1] = '\0'; // Null-terminate to avoid overflow
-            break;
-        }
-
-        if (strcmp(argv[i], "--data") == 0 && i + 1 < argc) {
-            // Copy the next argument as the directory path
-            strncpy(data, argv[i + 1], sizeof(data) - 1);
-            data[sizeof(data) - 1] = '\0'; // Null-terminate to avoid overflow
             break;
         }
     }
