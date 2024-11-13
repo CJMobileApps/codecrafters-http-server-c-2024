@@ -32,6 +32,7 @@ char *int_to_string(const int value) {
     return result;
 }
 
+//todo why is this broke?
 // Function to split a string by spaces and return an array of tokens
 char **split_string_by_separator(const char *input, int *out_count, const char *separator) {
     int capacity = 10; // Initial capacity for the tokens array
