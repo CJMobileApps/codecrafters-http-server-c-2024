@@ -371,7 +371,7 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
         );
 
         if (requestContentEncodingArrayCount <= 2) {
-            if (strstr(serverRequest->requestStatusLine, acceptedEncoding) != NULL) {
+            if (strstr(requestContentEncodingArray[1], acceptedEncoding) != NULL) {
                 char *contentEncoding = requestContentEncodingArray[1];
                 serverResponse->contentEncoding = contentEncoding;
             }
