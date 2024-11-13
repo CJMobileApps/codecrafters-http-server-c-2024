@@ -93,9 +93,9 @@ typedef struct {
     char *optionalReasonPhrase;
     int contentLength;
     char *contentType;
+    char *contentEncoding;
     //     val crlfStatusLine: String = "\r\n",
     //     // contentBytes: ByteArray? = null,
-    //     // contentType: String = "",
     //     // encoding: String = "",
 } ServerResponse;
 
@@ -184,8 +184,25 @@ char *getHeader(const ServerResponse *serverResponse) {
     strcat(contentLength, contentLengthToString);
     strcat(contentLength, contentLengthPostString);
 
-    //todo update one day val contentEncoding = if(encoding.isNotEmpty()) "Content-Encoding: $encoding\r\n" else ""
-    const char *contentEncoding = "";
+    // val contentEncoding = if(encoding.isNotEmpty()) "Content-Encoding: $encoding\r\n" else ""
+    const char *contentEncoding;
+    if(serverResponse->contentEncoding != NULL) {
+        const char *contentEncodingPreString = "Content-Encoding: ";
+        const char *contentEncodingPostString = "\r\n";
+
+        contentEncoding = malloc(
+            strlen(contentLengthPreString)
+            + strlen(contentLengthToString)
+            + strlen(contentLengthPostString)
+            + 1
+        );
+
+        strcpy(contentEncoding, contentEncodingPreString);
+        strcat(contentEncoding, serverResponse->contentEncoding);
+        strcat(contentEncoding, contentEncodingPostString);
+    } else {
+        contentEncoding = "";
+    }
 
     char *headerResponse = malloc(
         strlen(serverResponse->contentType)
@@ -342,6 +359,22 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
     if (serverRequest == NULL) return;
     if (serverResponse == NULL) return;
 
+    if(serverRequest->requestContentEncoding != NULL) {
+        int requestContentEncodingArrayCount = 0; // Variable to store the number of tokens
+
+        // Call the split function and retrieve the tokens array
+        char **requestContentEncodingArray = split_string_by_separator(
+            serverRequest->requestContentEncoding,
+            &requestContentEncodingArrayCount,
+            " "
+        );
+
+        if (requestContentEncodingArrayCount <= 2) {
+            char *contentEncoding = requestContentEncodingArray[1];
+            serverResponse->contentEncoding = contentEncoding;
+        }
+    }
+
     int requestStatusLineArrayCount = 0; // Variable to store the number of tokens
 
     // Call the split function and retrieve the tokens array
@@ -419,7 +452,6 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                         // Write the buffer contents to standard output
                         fwrite(buffer, 1, bytesRead, stdout);
                     }
-
 
                     fclose(file);
 
