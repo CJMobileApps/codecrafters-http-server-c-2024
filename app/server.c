@@ -11,6 +11,7 @@
 #define BUFFER_SIZE 1024
 #define MAX_CONCURRENT_CONNECTIONS 5  // Limit to 5 concurrent connections
 char directoryName[256] = "";
+char *acceptedEncoding = "gzip";
 
 pthread_mutex_t connection_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex to protect the active_connections counter
 int active_connections = 0; // Shared counter to track the number of active connections
@@ -370,8 +371,10 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
         );
 
         if (requestContentEncodingArrayCount <= 2) {
-            char *contentEncoding = requestContentEncodingArray[1];
-            serverResponse->contentEncoding = contentEncoding;
+            if (strstr(serverRequest->requestStatusLine, acceptedEncoding) != NULL) {
+                char *contentEncoding = requestContentEncodingArray[1];
+                serverResponse->contentEncoding = contentEncoding;
+            }
         }
     }
 
