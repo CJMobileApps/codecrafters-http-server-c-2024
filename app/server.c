@@ -89,6 +89,7 @@ char **split_string_by_separator(const char *input, int *out_count, const char *
 }
 
 typedef struct {
+
     char *httpVersion;
     char *content;
     char *statusCode;
@@ -96,6 +97,7 @@ typedef struct {
     int contentLength;
     char *contentType;
     char *contentEncoding;
+    //char *contentEncoding;
     //     val crlfStatusLine: String = "\r\n",
     //     // contentBytes: ByteArray? = null,
     //     // encoding: String = "",
@@ -103,11 +105,37 @@ typedef struct {
 
 ServerResponse *buildServerResponse() {
     ServerResponse *serverResponse = malloc(sizeof(ServerResponse));
+    serverResponse->httpVersion = strdup("");
+    serverResponse->content = strdup("");
+    serverResponse->statusCode = strdup("");
+    serverResponse->optionalReasonPhrase = strdup("");
+    serverResponse->contentType = strdup("");
+    serverResponse->contentEncoding = strdup("");
+
     serverResponse->httpVersion = "HTTP/1.1";
 
     return serverResponse;
 }
 
+void freeServerResponse(ServerResponse *serverResponse) {
+    serverResponse->httpVersion = strdup("");
+    free(serverResponse->httpVersion);
+
+    serverResponse->content = strdup("");
+    free(serverResponse->content);
+
+    serverResponse->statusCode = strdup("");
+    free(serverResponse->statusCode);
+
+    serverResponse->optionalReasonPhrase = strdup("");
+    free(serverResponse->optionalReasonPhrase);
+
+    serverResponse->contentType = strdup("");
+    free(serverResponse->contentType);
+
+    serverResponse->contentEncoding = strdup("");
+    free(serverResponse->contentEncoding);
+}
 
 char *getResponseBody(const ServerResponse *serverResponse) {
     if (serverResponse == NULL || serverResponse->content == NULL) {
@@ -188,17 +216,20 @@ char *getHeader(const ServerResponse *serverResponse) {
 
     // val contentEncoding = if(encoding.isNotEmpty()) "Content-Encoding: $encoding\r\n" else ""
     const char *contentEncoding;
-    if(serverResponse->contentEncoding != NULL) {
+    printf("Did 8888s here %s\n", serverResponse->contentEncoding);
+    if(serverResponse->contentEncoding != NULL && serverResponse->contentEncoding[0] != '\0') {
+        printf("Did 9999s here %s\n", serverResponse->contentEncoding);
         const char *contentEncodingPreString = "Content-Encoding: ";
         const char *contentEncodingPostString = "\r\n";
 
         contentEncoding = malloc(
             strlen(contentLengthPreString)
-            + strlen(contentLengthToString)
+            + strlen(serverResponse->contentEncoding)
             + strlen(contentLengthPostString)
             + 1
         );
 
+        printf("Did 22234 here %s\n", serverResponse->contentEncoding);
         strcpy(contentEncoding, contentEncodingPreString);
         strcat(contentEncoding, serverResponse->contentEncoding);
         strcat(contentEncoding, contentEncodingPostString);
@@ -255,8 +286,44 @@ typedef struct {
     char *requestContent;
 } ServerRequest;
 
+void freeServerRequest(ServerRequest *serverRequest) {
+
+    serverRequest->requestStatusLine = strdup("");
+    free(serverRequest->requestStatusLine);
+
+    serverRequest->requestHostPort = strdup("");
+    free(serverRequest->requestHostPort);
+
+    serverRequest->requestUserAgent = strdup("");
+    free(serverRequest->requestUserAgent);
+
+    serverRequest->requestHeader = strdup("");
+    free(serverRequest->requestHeader);
+
+    serverRequest->requestContentLength = strdup("");
+    free(serverRequest->requestContentLength);
+
+    serverRequest->requestBody = strdup("");
+    free(serverRequest->requestBody);
+
+    serverRequest->requestContentEncoding = strdup("");
+    free(serverRequest->requestContentEncoding);
+
+    serverRequest->requestContent = strdup("");
+    free(serverRequest->requestContent);
+}
+
+
 ServerRequest *parseClientRequest(char *line, char *savePtr) {
     ServerRequest *serverRequest = malloc(sizeof(ServerRequest));
+    serverRequest->requestStatusLine = strdup("");
+    serverRequest->requestHostPort = strdup("");
+    serverRequest->requestUserAgent = strdup("");
+    serverRequest->requestHeader = strdup("");
+    serverRequest->requestContentLength = strdup("");
+    serverRequest->requestBody = strdup("");
+    serverRequest->requestContentEncoding = strdup("");
+    serverRequest->requestContent = strdup("");
 
     while (line != NULL) {
         if (strstr(line, "GET") != NULL
@@ -372,7 +439,11 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
         );
 
         if (requestContentEncodingArrayCount <= 2) {
+            printf("Did you get here Mature %s\n", requestContentEncodingArray[1]);
+            printf("Did you get here Mature2 %s\n", serverResponse->contentEncoding);
+
             if (strstr(requestContentEncodingArray[1], acceptedEncoding) != NULL) {
+                printf("Did you get here%s\n", requestContentEncodingArray[1]);
                 char *contentEncoding = requestContentEncodingArray[1];
                 serverResponse->contentEncoding = contentEncoding;
             }
@@ -568,7 +639,9 @@ void *createServer(const int server_fd, char *buffer) {
     printf("Response sent to client\n%s\n", response);
 
     free(response);
+    freeServerResponse(serverResponse);
     free(serverResponse);
+    freeServerRequest(serverRequest);
     free(serverRequest);
 
     // Close the connection with the client
