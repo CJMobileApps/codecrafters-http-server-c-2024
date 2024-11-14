@@ -11,7 +11,7 @@
 #define BUFFER_SIZE 1024
 #define MAX_CONCURRENT_CONNECTIONS 5  // Limit to 5 concurrent connections
 char directoryName[256] = "";
-char *acceptedEncoding = "gzip";
+char *gzipAcceptedEncoding = "gzip";
 
 pthread_mutex_t connection_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex to protect the active_connections counter
 int active_connections = 0; // Shared counter to track the number of active connections
@@ -89,7 +89,6 @@ char **split_string_by_separator(const char *input, int *out_count, const char *
 }
 
 typedef struct {
-
     char *httpVersion;
     char *content;
     char *statusCode;
@@ -216,7 +215,7 @@ char *getHeader(const ServerResponse *serverResponse) {
 
     // val contentEncoding = if(encoding.isNotEmpty()) "Content-Encoding: $encoding\r\n" else ""
     const char *contentEncoding;
-    if(serverResponse->contentEncoding != NULL && serverResponse->contentEncoding[0] != '\0') {
+    if (serverResponse->contentEncoding != NULL && serverResponse->contentEncoding[0] != '\0') {
         const char *contentEncodingPreString = "Content-Encoding: ";
         const char *contentEncodingPostString = "\r\n";
 
@@ -284,7 +283,6 @@ typedef struct {
 } ServerRequest;
 
 void freeServerRequest(ServerRequest *serverRequest) {
-
     serverRequest->requestStatusLine = strdup("");
     free(serverRequest->requestStatusLine);
 
@@ -366,7 +364,7 @@ ServerRequest *parseClientRequest(char *line, char *savePtr) {
         }
 
         // get request body from POST
-        if(strlen(line) == serverRequest->contentLength) {
+        if (strlen(line) == serverRequest->contentLength) {
             serverRequest->requestContent = line;
             printf("%s\n", serverRequest->requestContent);
         }
@@ -425,7 +423,7 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
     if (serverRequest == NULL) return;
     if (serverResponse == NULL) return;
 
-    if(serverRequest->requestContentEncoding != NULL) {
+    if (serverRequest->requestContentEncoding != NULL) {
         int requestContentEncodingArrayCount = 0; // Variable to store the number of tokens
 
         // Call the split function and retrieve the tokens array
@@ -435,9 +433,11 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
             " "
         );
 
-        if (requestContentEncodingArrayCount <= 2) {
-            if (strstr(requestContentEncodingArray[1], acceptedEncoding) != NULL) {
-                char *contentEncoding = requestContentEncodingArray[1];
+        for (int i = 0; i < requestContentEncodingArrayCount; i++) {
+            const char *contentEncodingString = requestContentEncodingArray[i];
+
+            if (strstr(contentEncodingString, gzipAcceptedEncoding) != NULL) {
+                char *contentEncoding = gzipAcceptedEncoding;
                 serverResponse->contentEncoding = contentEncoding;
             }
         }
@@ -540,7 +540,10 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
                         return;
                     }
 
-                    const size_t bytesWritten = fwrite(serverRequest->requestContent, sizeof(char), strlen(serverRequest->requestContent), file);
+                    const size_t bytesWritten = fwrite(
+                        serverRequest->requestContent, sizeof(char),
+                        strlen(serverRequest->requestContent), file
+                    );
                     if (bytesWritten != strlen(serverRequest->requestContent)) {
                         perror("Error writing to file");
                     }
