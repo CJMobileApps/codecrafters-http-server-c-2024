@@ -118,22 +118,22 @@ ServerResponse *buildServerResponse() {
 }
 
 void freeServerResponse(ServerResponse *serverResponse) {
-    //serverResponse->httpVersion = strdup("");
+    serverResponse->httpVersion = strdup("");
     free(serverResponse->httpVersion);
 
-    //serverResponse->content = strdup("");
+    serverResponse->content = strdup("");
     free(serverResponse->content);
 
-    //serverResponse->statusCode = strdup("");
+    serverResponse->statusCode = strdup("");
     free(serverResponse->statusCode);
 
-    //serverResponse->optionalReasonPhrase = strdup("");
+    serverResponse->optionalReasonPhrase = strdup("");
     free(serverResponse->optionalReasonPhrase);
 
-    //serverResponse->contentType = strdup("");
+    serverResponse->contentType = strdup("");
     free(serverResponse->contentType);
 
-    //serverResponse->contentEncoding = strdup("");
+    serverResponse->contentEncoding = strdup("");
     free(serverResponse->contentEncoding);
 }
 
@@ -285,28 +285,28 @@ typedef struct {
 
 void freeServerRequest(ServerRequest *serverRequest) {
 
-    //serverRequest->requestStatusLine = strdup("");
+    serverRequest->requestStatusLine = strdup("");
     free(serverRequest->requestStatusLine);
 
-    //serverRequest->requestHostPort = strdup("");
+    serverRequest->requestHostPort = strdup("");
     free(serverRequest->requestHostPort);
 
-    //serverRequest->requestUserAgent = strdup("");
+    serverRequest->requestUserAgent = strdup("");
     free(serverRequest->requestUserAgent);
 
-    //serverRequest->requestHeader = strdup("");
+    serverRequest->requestHeader = strdup("");
     free(serverRequest->requestHeader);
 
-    //serverRequest->requestContentLength = strdup("");
+    serverRequest->requestContentLength = strdup("");
     free(serverRequest->requestContentLength);
 
-    //serverRequest->requestBody = strdup("");
+    serverRequest->requestBody = strdup("");
     free(serverRequest->requestBody);
 
-    //serverRequest->requestContentEncoding = strdup("");
+    serverRequest->requestContentEncoding = strdup("");
     free(serverRequest->requestContentEncoding);
 
-    //serverRequest->requestContent = strdup("");
+    serverRequest->requestContent = strdup("");
     free(serverRequest->requestContent);
 }
 
