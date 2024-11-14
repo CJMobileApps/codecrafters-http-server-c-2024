@@ -118,22 +118,22 @@ ServerResponse *buildServerResponse() {
 }
 
 void freeServerResponse(ServerResponse *serverResponse) {
-    serverResponse->httpVersion = strdup("");
+    //serverResponse->httpVersion = strdup("");
     free(serverResponse->httpVersion);
 
-    serverResponse->content = strdup("");
+    //serverResponse->content = strdup("");
     free(serverResponse->content);
 
-    serverResponse->statusCode = strdup("");
+    //serverResponse->statusCode = strdup("");
     free(serverResponse->statusCode);
 
-    serverResponse->optionalReasonPhrase = strdup("");
+    //serverResponse->optionalReasonPhrase = strdup("");
     free(serverResponse->optionalReasonPhrase);
 
-    serverResponse->contentType = strdup("");
+    //serverResponse->contentType = strdup("");
     free(serverResponse->contentType);
 
-    serverResponse->contentEncoding = strdup("");
+    //serverResponse->contentEncoding = strdup("");
     free(serverResponse->contentEncoding);
 }
 
@@ -216,9 +216,7 @@ char *getHeader(const ServerResponse *serverResponse) {
 
     // val contentEncoding = if(encoding.isNotEmpty()) "Content-Encoding: $encoding\r\n" else ""
     const char *contentEncoding;
-    printf("Did 8888s here %s\n", serverResponse->contentEncoding);
     if(serverResponse->contentEncoding != NULL && serverResponse->contentEncoding[0] != '\0') {
-        printf("Did 9999s here %s\n", serverResponse->contentEncoding);
         const char *contentEncodingPreString = "Content-Encoding: ";
         const char *contentEncodingPostString = "\r\n";
 
@@ -229,7 +227,6 @@ char *getHeader(const ServerResponse *serverResponse) {
             + 1
         );
 
-        printf("Did 22234 here %s\n", serverResponse->contentEncoding);
         strcpy(contentEncoding, contentEncodingPreString);
         strcat(contentEncoding, serverResponse->contentEncoding);
         strcat(contentEncoding, contentEncodingPostString);
@@ -288,28 +285,28 @@ typedef struct {
 
 void freeServerRequest(ServerRequest *serverRequest) {
 
-    serverRequest->requestStatusLine = strdup("");
+    //serverRequest->requestStatusLine = strdup("");
     free(serverRequest->requestStatusLine);
 
-    serverRequest->requestHostPort = strdup("");
+    //serverRequest->requestHostPort = strdup("");
     free(serverRequest->requestHostPort);
 
-    serverRequest->requestUserAgent = strdup("");
+    //serverRequest->requestUserAgent = strdup("");
     free(serverRequest->requestUserAgent);
 
-    serverRequest->requestHeader = strdup("");
+    //serverRequest->requestHeader = strdup("");
     free(serverRequest->requestHeader);
 
-    serverRequest->requestContentLength = strdup("");
+    //serverRequest->requestContentLength = strdup("");
     free(serverRequest->requestContentLength);
 
-    serverRequest->requestBody = strdup("");
+    //serverRequest->requestBody = strdup("");
     free(serverRequest->requestBody);
 
-    serverRequest->requestContentEncoding = strdup("");
+    //serverRequest->requestContentEncoding = strdup("");
     free(serverRequest->requestContentEncoding);
 
-    serverRequest->requestContent = strdup("");
+    //serverRequest->requestContent = strdup("");
     free(serverRequest->requestContent);
 }
 
@@ -439,11 +436,7 @@ void buildResponseStatusLine(const ServerRequest *serverRequest, ServerResponse 
         );
 
         if (requestContentEncodingArrayCount <= 2) {
-            printf("Did you get here Mature %s\n", requestContentEncodingArray[1]);
-            printf("Did you get here Mature2 %s\n", serverResponse->contentEncoding);
-
             if (strstr(requestContentEncodingArray[1], acceptedEncoding) != NULL) {
-                printf("Did you get here%s\n", requestContentEncodingArray[1]);
                 char *contentEncoding = requestContentEncodingArray[1];
                 serverResponse->contentEncoding = contentEncoding;
             }
