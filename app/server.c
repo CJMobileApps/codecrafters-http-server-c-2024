@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <zlib.h>
 
 #define BUFFER_SIZE 1024
 #define MAX_CONCURRENT_CONNECTIONS 5  // Limit to 5 concurrent connections
@@ -136,22 +137,112 @@ void freeServerResponse(ServerResponse *serverResponse) {
     free(serverResponse->contentEncoding);
 }
 
-char *getResponseBody(const ServerResponse *serverResponse) {
+//TODO move this to the top
+// Function to compress a string into GZIP format
+char* compress_string_gzip(const char* input, size_t input_len, size_t* compressed_len) {
+    if (!input || input_len == 0) {
+        return NULL;
+    }
+
+    // Allocate a buffer for the compressed data (start with a guess size)
+    size_t buffer_size = compressBound(input_len);
+    char* compressed_data = (char*)malloc(buffer_size);
+    if (!compressed_data) {
+        fprintf(stderr, "Memory allocation failed\n");
+        return NULL;
+    }
+
+    // Compress the input string
+    int ret = compress2((Bytef*)compressed_data, &buffer_size, (const Bytef*)input, input_len, Z_BEST_COMPRESSION);
+    if (ret != Z_OK) {
+        fprintf(stderr, "Compression failed with error code: %d\n", ret);
+        free(compressed_data);
+        return NULL;
+    }
+
+    // Update the size of the compressed data
+    *compressed_len = buffer_size;
+
+    return compressed_data;
+}
+
+// Helper function to compress data to GZIP format
+unsigned char *compressToGzip(const char *input_str, size_t *compressed_len) {
+    // Initialize a buffer for compressed data
+    unsigned char *compressed_data = malloc(1024);  // Adjust buffer size as needed
+    if (compressed_data == NULL) {
+        perror("malloc failed");
+        return NULL;
+    }
+
+    // Initialize zlib stream for compression
+    z_stream strm;
+    memset(&strm, 0, sizeof(strm));
+
+    if (deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+        free(compressed_data);
+        perror("deflateInit2 failed");
+        return NULL;
+    }
+
+    strm.avail_in = strlen(input_str);        // Input data length
+    strm.next_in = (unsigned char *)input_str; // Input data (string)
+    strm.avail_out = 1024;                    // Output buffer size
+    strm.next_out = compressed_data;          // Output buffer
+
+    // Compress the input string to the output buffer
+    if (deflate(&strm, Z_FINISH) != Z_STREAM_END) {
+        deflateEnd(&strm);
+        free(compressed_data);
+        perror("deflate failed");
+        return NULL;
+    }
+
+    *compressed_len = strm.total_out; // Get the compressed data length
+
+    deflateEnd(&strm); // Clean up the zlib stream
+
+    return compressed_data;
+}
+
+// Main function to get the response body (compressed)
+char *getResponseBody(ServerResponse *serverResponse) {
     if (serverResponse == NULL || serverResponse->content == NULL) {
+        // Return an empty string if the content is NULL
         char *newString = malloc(strlen("") + 1);
         strcpy(newString, "");
         return newString;
     }
 
-    char *responseBody = malloc(strlen(serverResponse->content) + 1);
-    strcpy(responseBody, serverResponse->content);
+    // Input string (this is the content to be compressed)
+    const char *input_str = serverResponse->content;
 
-    // if not gzip compression set responseBody
-    // val responseBody = if(!encoding.contains(ServerState.AllowedEncoding.GZIP.name.lowercase())) {
-    //
-    //     getResponseBody() which will be serverResponse->content
-    // } else ""
+    // Compress the input string to GZIP format
+    size_t compressed_len = 0;
+    unsigned char *compressed_data = compressToGzip(input_str, &compressed_len);
+    if (compressed_data == NULL) {
+        return NULL; // Return NULL if compression failed
+    }
 
+    // Allocate memory for the response body (as a char * type)
+    char *responseBody = malloc(compressed_len + 1);
+    if (responseBody == NULL) {
+        free(compressed_data);
+        perror("malloc failed for responseBody");
+        return NULL;
+    }
+
+    // Copy the compressed data to the response body (as a string)
+    memcpy(responseBody, compressed_data, compressed_len);
+    responseBody[compressed_len] = '\0'; // Null-terminate the string
+
+    // Update the content length in the server response struct
+    serverResponse->contentLength = (int)compressed_len;
+
+    // Free the temporary compressed data buffer
+    free(compressed_data);
+
+    // Return the compressed response body
     return responseBody;
 }
 
@@ -253,8 +344,8 @@ char *getHeader(const ServerResponse *serverResponse) {
 
 char *getServerResponse(const ServerResponse *serverResponse) {
     char *statusLine = getStatusLine(serverResponse);
-    char *header = getHeader(serverResponse);
     char *responseBody = getResponseBody(serverResponse);
+    char *header = getHeader(serverResponse);
 
 
     const size_t size = strlen(statusLine) + strlen(header) + strlen(responseBody) + 1;
