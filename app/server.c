@@ -12,7 +12,13 @@
 #define BUFFER_SIZE 1024
 #define MAX_CONCURRENT_CONNECTIONS 5  // Limit to 5 concurrent connections
 char directoryName[256] = "";
+
+// GZIP Constants
 char *gzipAcceptedEncoding = "gzip";
+#define GZIP_HEADER_FOOTER_SIZE 100
+#define ZLIB_COMPRESSION_LEVEL Z_BEST_COMPRESSION
+#define GZIP_WINDOW_BITS (15 + 16)
+#define ZLIB_MEM_LEVEL 8
 
 pthread_mutex_t connection_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex to protect the active_connections counter
 int active_connections = 0; // Shared counter to track the number of active connections
@@ -144,80 +150,63 @@ void freeServerResponse(ServerResponse *serverResponse) {
 
 //TODO move this to the top
 // Function to compress a string into GZIP format
-
-
 void getResponseBody(ServerResponse *serverResponse, ResponseBody *response_body) {
+    // Handle NULL or invalid input
     if (serverResponse == NULL || serverResponse->content == NULL) {
         response_body->size = 0;
         response_body->body = strdup("");
         return;
     }
 
-    // Handle GZIP compression
+    // Check for GZIP encoding
     if (strstr(serverResponse->contentEncoding, "gzip") != NULL) {
         const char *input = serverResponse->content;
         size_t input_len = strlen(input);
 
-        // Allocate space for the compressed data, accounting for GZIP header and footer
-        size_t max_compressed_len = input_len + 100; // GZIP header + footer space
+        // Allocate memory for the compressed data
+        size_t max_compressed_len = input_len + GZIP_HEADER_FOOTER_SIZE;
         char *compressed = malloc(max_compressed_len);
         if (compressed == NULL) {
-            printf("Memory allocation failed\n");
+            fprintf(stderr, "Memory allocation failed\n");
             return;
         }
 
-        // Initialize the zlib stream for GZIP compression
-        z_stream strm;
-        memset(&strm, 0, sizeof(strm));
-
-        // Use Z_BEST_COMPRESSION for the highest compression level
-        if (deflateInit2(&strm, Z_BEST_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-            printf("Failed to initialize deflate stream\n");
+        // Initialize zlib stream
+        z_stream stream = {0};
+        if (deflateInit2(&stream, ZLIB_COMPRESSION_LEVEL, Z_DEFLATED, GZIP_WINDOW_BITS, ZLIB_MEM_LEVEL, Z_DEFAULT_STRATEGY) != Z_OK) {
+            fprintf(stderr, "Failed to initialize deflate stream\n");
             free(compressed);
             return;
         }
 
-        // Set the input data for compression
-        strm.avail_in = input_len;
-        strm.next_in = (unsigned char *) input;
+        // Configure input and output for compression
+        stream.avail_in = input_len;
+        stream.next_in = (unsigned char *)input;
+        stream.avail_out = max_compressed_len;
+        stream.next_out = (unsigned char *)compressed;
 
-        // Set the output buffer for compressed data
-        strm.avail_out = max_compressed_len;
-        strm.next_out = (unsigned char *) compressed;
-
-        // Compress the data
-        if (deflate(&strm, Z_FINISH) != Z_STREAM_END) {
-            printf("Compression failed\n");
-            deflateEnd(&strm);
+        // Perform compression
+        if (deflate(&stream, Z_FINISH) != Z_STREAM_END) {
+            fprintf(stderr, "Compression failed\n");
+            deflateEnd(&stream);
             free(compressed);
             return;
         }
 
-        // Finalize the compression
-        const size_t compressed_len = max_compressed_len - strm.avail_out;
+        // Get compressed length
+        size_t compressed_len = max_compressed_len - stream.avail_out;
 
-        // Clean up the deflate stream
-        deflateEnd(&strm);
+        // Clean up zlib stream
+        deflateEnd(&stream);
 
-        // Optionally, print the compressed data in hexadecimal format
-        printf("Compressed data (in hex): ");
-        for (size_t i = 0; i < compressed_len; i++) {
-            printf("%02x ", (unsigned char) compressed[i]);
-        }
-        printf("\n");
-
-        // Print the compressed length
-        printf("Compressed length: %zu\n", compressed_len);
-
-        // Update the serverResponse content length with the compressed length
-        serverResponse->contentLength = (int) compressed_len;
-
-        // Return the compressed response body
-        response_body->size = (int) compressed_len;
+        // Update server response and response body
+        serverResponse->contentLength = (int)compressed_len;
+        response_body->size = (int)compressed_len;
         response_body->body = compressed;
+
     } else {
-        // If no GZIP encoding, just return the original content
-        response_body->size = (int) strlen(serverResponse->content);
+        // Return original content if not GZIP-encoded
+        response_body->size = (int)strlen(serverResponse->content);
         response_body->body = strdup(serverResponse->content);
     }
 }
