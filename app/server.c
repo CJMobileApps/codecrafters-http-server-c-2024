@@ -101,7 +101,6 @@ typedef struct {
 } ResponseBody;
 
 
-
 ResponseBody *initResponseBody() {
     ResponseBody *responseBody = malloc(sizeof(ResponseBody));
     responseBody->body = strdup(""); // Initialize the pointer to NULL for safety
@@ -161,6 +160,8 @@ void freeServerResponse(ServerResponse *serverResponse) {
 }
 
 void getResponseBody(ServerResponse *serverResponse, ResponseBody *responseBody) {
+    if (responseBody == NULL) return;
+
     // Handle NULL or invalid input
     if (serverResponse == NULL || serverResponse->content == NULL) {
         responseBody->size = 0;
@@ -261,8 +262,6 @@ char *getHeader(const ServerResponse *serverResponse) {
 
     if (serverResponse == NULL) {
         char *contentLength = malloc(strlen(crlfHeadersLine) + 1);
-        //strcpy(contentLength, crlfHeadersLine);
-        //strcpy(contentLength, "Content-Length: 0\r\n");
         return contentLength;
     }
 
@@ -278,7 +277,6 @@ char *getHeader(const ServerResponse *serverResponse) {
         + 1
     );
 
-    // return "Content-Length: ${this.contentLength}\r\n";
     strcpy(contentLength, contentLengthPreString);
     strcat(contentLength, contentLengthToString);
     strcat(contentLength, contentLengthPostString);
@@ -332,9 +330,7 @@ char *getServerResponse(ServerResponse *serverResponse, ResponseBody *responseBo
     char *str = malloc(size);
     strcpy(str, statusLine);
     strcat(str, header);
-    //strcat(str, responseBody);
 
-    //free(responseBody); //todo dumb ass ?
     free(header);
     free(statusLine);
 
@@ -443,6 +439,7 @@ ServerRequest *parseClientRequest(char *line, char *savePtr) {
         line = strtok_r(NULL, "\n", &savePtr);
     }
 
+    // ReSharper disable once CppDFAMemoryLeak
     return serverRequest;
 }
 
