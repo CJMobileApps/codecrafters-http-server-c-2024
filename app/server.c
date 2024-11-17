@@ -148,34 +148,29 @@ void freeServerResponse(ServerResponse *serverResponse) {
 
 void getResponseBody(ServerResponse *serverResponse, ResponseBody *response_body) {
     if (serverResponse == NULL || serverResponse->content == NULL) {
-        // // Return an empty string if the content is NULL
-        // char *newString = malloc(1);  // Allocate space for an empty string
-        // newString[0] = '\0';
-        // //return newString;
-        // //TODO fix
         response_body->size = 0;
         response_body->body = strdup("");
         return;
     }
 
-    // Handle GZIP
-    // Compressed data (in hex): 1f8b0800000000000003edc9440a80000000000
-    // Compressed length: 23
-    if (strstr(serverResponse->contentEncoding, gzipAcceptedEncoding) != NULL) {
-        const char *input = serverResponse->content; // The input string to compress (could be replaced with serverResponse->content)
+    // Handle GZIP compression
+    if (strstr(serverResponse->contentEncoding, "gzip") != NULL) {
+        const char *input = serverResponse->content;
         size_t input_len = strlen(input);
 
         // Allocate space for the compressed data, accounting for GZIP header and footer
-        size_t max_compressed_len = input_len + 100; // GZIP header + footer space (less than before)
+        size_t max_compressed_len = input_len + 100; // GZIP header + footer space
         char *compressed = malloc(max_compressed_len);
         if (compressed == NULL) {
             printf("Memory allocation failed\n");
-            return ;
+            return;
         }
 
         // Initialize the zlib stream for GZIP compression
         z_stream strm;
         memset(&strm, 0, sizeof(strm));
+
+        // Use Z_BEST_COMPRESSION for the highest compression level
         if (deflateInit2(&strm, Z_BEST_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
             printf("Failed to initialize deflate stream\n");
             free(compressed);
@@ -207,7 +202,7 @@ void getResponseBody(ServerResponse *serverResponse, ResponseBody *response_body
         // Optionally, print the compressed data in hexadecimal format
         printf("Compressed data (in hex): ");
         for (size_t i = 0; i < compressed_len; i++) {
-            printf("%02x", (unsigned char) compressed[i]);
+            printf("%02x ", (unsigned char) compressed[i]);
         }
         printf("\n");
 
@@ -219,8 +214,9 @@ void getResponseBody(ServerResponse *serverResponse, ResponseBody *response_body
 
         // Return the compressed response body
         response_body->size = (int) compressed_len;
-        response_body->body = strdup(compressed);
+        response_body->body = compressed;
     } else {
+        // If no GZIP encoding, just return the original content
         response_body->size = (int) strlen(serverResponse->content);
         response_body->body = strdup(serverResponse->content);
     }
@@ -718,13 +714,23 @@ void *createServer(const int server_fd, char *buffer) {
 
     printf("responseBody->body %s\n", responseBody->body);
 
-    const long writeRequestClient2 = write(new_socket, responseBody->body, responseBody->size);
+    FILE *file = fopen("compressed_data.gz", "wb");
+    if (file == NULL) {
+        perror("Failed to open file");
+        exit(EXIT_FAILURE);
+    }
+    fwrite(responseBody->body, 1, responseBody->size, file);
+    fclose(file);
+
+    const long writeRequestClient2 = write(new_socket, responseBody->body, 1024);
     if (writeRequestClient2 < 0) {
         perror("Send Response 2 failed");
         close(new_socket);
         close(server_fd);
         exit(EXIT_FAILURE);
     }
+
+
 
     free(response);
     freeServerResponse(serverResponse);
