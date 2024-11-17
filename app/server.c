@@ -100,6 +100,22 @@ typedef struct {
     int size;
 } ResponseBody;
 
+
+
+ResponseBody *initResponseBody() {
+    ResponseBody *responseBody = malloc(sizeof(ResponseBody));
+    responseBody->body = strdup(""); // Initialize the pointer to NULL for safety
+    responseBody->size = 0;
+    return responseBody;
+}
+
+void freeResponseBody(ResponseBody *responseBody) {
+    responseBody->body = strdup(""); // Initialize the pointer to NULL for safety
+    free(responseBody->body);
+
+    responseBody->size = 0;
+}
+
 typedef struct {
     char *httpVersion;
     char *content;
@@ -108,10 +124,6 @@ typedef struct {
     int contentLength;
     char *contentType;
     char *contentEncoding;
-    //char *contentEncoding;
-    //     val crlfStatusLine: String = "\r\n",
-    //     // contentBytes: ByteArray? = null,
-    //     // encoding: String = "",
 } ServerResponse;
 
 ServerResponse *buildServerResponse() {
@@ -148,42 +160,45 @@ void freeServerResponse(ServerResponse *serverResponse) {
     free(serverResponse->contentEncoding);
 }
 
-//TODO move this to the top
-// Function to compress a string into GZIP format
-void getResponseBody(ServerResponse *serverResponse, ResponseBody *response_body) {
+void getResponseBody(ServerResponse *serverResponse, ResponseBody *responseBody) {
     // Handle NULL or invalid input
     if (serverResponse == NULL || serverResponse->content == NULL) {
-        response_body->size = 0;
-        response_body->body = strdup("");
+        responseBody->size = 0;
+        responseBody->body = strdup("");
         return;
     }
 
     // Check for GZIP encoding
     if (strstr(serverResponse->contentEncoding, "gzip") != NULL) {
         const char *input = serverResponse->content;
-        size_t input_len = strlen(input);
+        const size_t input_len = strlen(input);
 
         // Allocate memory for the compressed data
-        size_t max_compressed_len = input_len + GZIP_HEADER_FOOTER_SIZE;
+        const size_t max_compressed_len = input_len + GZIP_HEADER_FOOTER_SIZE;
         char *compressed = malloc(max_compressed_len);
         if (compressed == NULL) {
             fprintf(stderr, "Memory allocation failed\n");
+            responseBody->size = 0;
+            responseBody->body = strdup("");
             return;
         }
 
         // Initialize zlib stream
         z_stream stream = {0};
-        if (deflateInit2(&stream, ZLIB_COMPRESSION_LEVEL, Z_DEFLATED, GZIP_WINDOW_BITS, ZLIB_MEM_LEVEL, Z_DEFAULT_STRATEGY) != Z_OK) {
+        if (deflateInit2(&stream, ZLIB_COMPRESSION_LEVEL, Z_DEFLATED, GZIP_WINDOW_BITS, ZLIB_MEM_LEVEL,
+                         Z_DEFAULT_STRATEGY) != Z_OK) {
             fprintf(stderr, "Failed to initialize deflate stream\n");
             free(compressed);
+            responseBody->size = 0;
+            responseBody->body = strdup("");
             return;
         }
 
         // Configure input and output for compression
         stream.avail_in = input_len;
-        stream.next_in = (unsigned char *)input;
+        stream.next_in = (unsigned char *) input;
         stream.avail_out = max_compressed_len;
-        stream.next_out = (unsigned char *)compressed;
+        stream.next_out = (unsigned char *) compressed;
 
         // Perform compression
         if (deflate(&stream, Z_FINISH) != Z_STREAM_END) {
@@ -194,20 +209,19 @@ void getResponseBody(ServerResponse *serverResponse, ResponseBody *response_body
         }
 
         // Get compressed length
-        size_t compressed_len = max_compressed_len - stream.avail_out;
+        const size_t compressed_len = max_compressed_len - stream.avail_out;
 
         // Clean up zlib stream
         deflateEnd(&stream);
 
         // Update server response and response body
-        serverResponse->contentLength = (int)compressed_len;
-        response_body->size = (int)compressed_len;
-        response_body->body = compressed;
-
+        serverResponse->contentLength = (int) compressed_len;
+        responseBody->size = (int) compressed_len;
+        responseBody->body = compressed;
     } else {
         // Return original content if not GZIP-encoded
-        response_body->size = (int)strlen(serverResponse->content);
-        response_body->body = strdup(serverResponse->content);
+        responseBody->size = (int) strlen(serverResponse->content);
+        responseBody->body = strdup(serverResponse->content);
     }
 }
 
@@ -307,16 +321,14 @@ char *getHeader(const ServerResponse *serverResponse) {
     return headerResponse;
 }
 
-char *getServerResponse(const ServerResponse *serverResponse, ResponseBody *responseBody) {
+char *getServerResponse(ServerResponse *serverResponse, ResponseBody *responseBody) {
     char *statusLine = getStatusLine(serverResponse);
 
     getResponseBody(serverResponse, responseBody);
-
-    printf("stirng length of *responseBody %d\n", responseBody->size);
     char *header = getHeader(serverResponse);
 
 
-    const size_t size = strlen(statusLine) + strlen(header)  + 1;
+    const size_t size = strlen(statusLine) + strlen(header) + 1;
     char *str = malloc(size);
     strcpy(str, statusLine);
     strcat(str, header);
@@ -681,9 +693,7 @@ void *createServer(const int server_fd, char *buffer) {
 
     buildResponseStatusLine(serverRequest, serverResponse);
 
-    ResponseBody *responseBody = malloc(sizeof(ResponseBody));
-    responseBody->body = NULL;  // Initialize the pointer to NULL for safety
-   responseBody->size = 0;
+    ResponseBody *responseBody = initResponseBody();
 
     char *response = getServerResponse(serverResponse, responseBody);
 
@@ -708,6 +718,7 @@ void *createServer(const int server_fd, char *buffer) {
     }
 
     free(response);
+    freeResponseBody(responseBody);
     freeServerResponse(serverResponse);
     free(serverResponse);
     freeServerRequest(serverRequest);
