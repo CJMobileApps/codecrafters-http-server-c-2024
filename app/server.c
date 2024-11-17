@@ -90,6 +90,11 @@ char **split_string_by_separator(const char *input, int *out_count, const char *
 }
 
 typedef struct {
+    char *body;
+    int size;
+} ResponseBody;
+
+typedef struct {
     char *httpVersion;
     char *content;
     char *statusCode;
@@ -139,111 +144,86 @@ void freeServerResponse(ServerResponse *serverResponse) {
 
 //TODO move this to the top
 // Function to compress a string into GZIP format
-char* compress_string_gzip(const char* input, size_t input_len, size_t* compressed_len) {
-    if (!input || input_len == 0) {
-        return NULL;
-    }
 
-    // Allocate a buffer for the compressed data (start with a guess size)
-    size_t buffer_size = compressBound(input_len);
-    char* compressed_data = (char*)malloc(buffer_size);
-    if (!compressed_data) {
-        fprintf(stderr, "Memory allocation failed\n");
-        return NULL;
-    }
 
-    // Compress the input string
-    int ret = compress2((Bytef*)compressed_data, &buffer_size, (const Bytef*)input, input_len, Z_BEST_COMPRESSION);
-    if (ret != Z_OK) {
-        fprintf(stderr, "Compression failed with error code: %d\n", ret);
-        free(compressed_data);
-        return NULL;
-    }
-
-    // Update the size of the compressed data
-    *compressed_len = buffer_size;
-
-    return compressed_data;
-}
-
-// Helper function to compress data to GZIP format
-unsigned char *compressToGzip(const char *input_str, size_t *compressed_len) {
-    // Initialize a buffer for compressed data
-    unsigned char *compressed_data = malloc(1024);  // Adjust buffer size as needed
-    if (compressed_data == NULL) {
-        perror("malloc failed");
-        return NULL;
-    }
-
-    // Initialize zlib stream for compression
-    z_stream strm;
-    memset(&strm, 0, sizeof(strm));
-
-    if (deflateInit2(&strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-        free(compressed_data);
-        perror("deflateInit2 failed");
-        return NULL;
-    }
-
-    strm.avail_in = strlen(input_str);        // Input data length
-    strm.next_in = (unsigned char *)input_str; // Input data (string)
-    strm.avail_out = 1024;                    // Output buffer size
-    strm.next_out = compressed_data;          // Output buffer
-
-    // Compress the input string to the output buffer
-    if (deflate(&strm, Z_FINISH) != Z_STREAM_END) {
-        deflateEnd(&strm);
-        free(compressed_data);
-        perror("deflate failed");
-        return NULL;
-    }
-
-    *compressed_len = strm.total_out; // Get the compressed data length
-
-    deflateEnd(&strm); // Clean up the zlib stream
-
-    return compressed_data;
-}
-
-// Main function to get the response body (compressed)
-char *getResponseBody(ServerResponse *serverResponse) {
+void getResponseBody(ServerResponse *serverResponse, ResponseBody *response_body) {
     if (serverResponse == NULL || serverResponse->content == NULL) {
-        // Return an empty string if the content is NULL
-        char *newString = malloc(strlen("") + 1);
-        strcpy(newString, "");
-        return newString;
+        // // Return an empty string if the content is NULL
+        // char *newString = malloc(1);  // Allocate space for an empty string
+        // newString[0] = '\0';
+        // //return newString;
+        // //TODO fix
+        response_body->size = 0;
+        response_body->body = strdup("");
+        return;
     }
 
-    // Input string (this is the content to be compressed)
-    const char *input_str = serverResponse->content;
+    // Handle GZIP
+    // Compressed data (in hex): 1f8b0800000000000003edc9440a80000000000
+    // Compressed length: 23
+    if (strstr(serverResponse->contentEncoding, gzipAcceptedEncoding) != NULL) {
+        const char *input = serverResponse->content; // The input string to compress (could be replaced with serverResponse->content)
+        size_t input_len = strlen(input);
 
-    // Compress the input string to GZIP format
-    size_t compressed_len = 0;
-    unsigned char *compressed_data = compressToGzip(input_str, &compressed_len);
-    if (compressed_data == NULL) {
-        return NULL; // Return NULL if compression failed
+        // Allocate space for the compressed data, accounting for GZIP header and footer
+        size_t max_compressed_len = input_len + 100; // GZIP header + footer space (less than before)
+        char *compressed = malloc(max_compressed_len);
+        if (compressed == NULL) {
+            printf("Memory allocation failed\n");
+            return ;
+        }
+
+        // Initialize the zlib stream for GZIP compression
+        z_stream strm;
+        memset(&strm, 0, sizeof(strm));
+        if (deflateInit2(&strm, Z_BEST_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+            printf("Failed to initialize deflate stream\n");
+            free(compressed);
+            return;
+        }
+
+        // Set the input data for compression
+        strm.avail_in = input_len;
+        strm.next_in = (unsigned char *) input;
+
+        // Set the output buffer for compressed data
+        strm.avail_out = max_compressed_len;
+        strm.next_out = (unsigned char *) compressed;
+
+        // Compress the data
+        if (deflate(&strm, Z_FINISH) != Z_STREAM_END) {
+            printf("Compression failed\n");
+            deflateEnd(&strm);
+            free(compressed);
+            return;
+        }
+
+        // Finalize the compression
+        const size_t compressed_len = max_compressed_len - strm.avail_out;
+
+        // Clean up the deflate stream
+        deflateEnd(&strm);
+
+        // Optionally, print the compressed data in hexadecimal format
+        printf("Compressed data (in hex): ");
+        for (size_t i = 0; i < compressed_len; i++) {
+            printf("%02x", (unsigned char) compressed[i]);
+        }
+        printf("\n");
+
+        // Print the compressed length
+        printf("Compressed length: %zu\n", compressed_len);
+
+        // Update the serverResponse content length with the compressed length
+        serverResponse->contentLength = (int) compressed_len;
+
+        // Return the compressed response body
+        response_body->size = (int) compressed_len;
+        response_body->body = strdup(compressed);
+    } else {
+        response_body->size = (int) strlen(serverResponse->content);
+        response_body->body = strdup(serverResponse->content);
     }
-
-    // Allocate memory for the response body (as a char * type)
-    char *responseBody = malloc(compressed_len + 1);
-    if (responseBody == NULL) {
-        free(compressed_data);
-        perror("malloc failed for responseBody");
-        return NULL;
-    }
-
-    // Copy the compressed data to the response body (as a string)
-    memcpy(responseBody, compressed_data, compressed_len);
-    responseBody[compressed_len] = '\0'; // Null-terminate the string
-
-    // Update the content length in the server response struct
-    serverResponse->contentLength = (int)compressed_len;
-
-    // Free the temporary compressed data buffer
-    free(compressed_data);
-
-    // Return the compressed response body
-    return responseBody;
 }
 
 char *getStatusLine(const ServerResponse *serverResponse) {
@@ -342,19 +322,23 @@ char *getHeader(const ServerResponse *serverResponse) {
     return headerResponse;
 }
 
-char *getServerResponse(const ServerResponse *serverResponse) {
+char *getServerResponse(const ServerResponse *serverResponse, ResponseBody *responseBody) {
     char *statusLine = getStatusLine(serverResponse);
-    char *responseBody = getResponseBody(serverResponse);
+
+
+    getResponseBody(serverResponse, responseBody);
+
+    printf("stirng length of *responseBody %d\n", responseBody->size);
     char *header = getHeader(serverResponse);
 
 
-    const size_t size = strlen(statusLine) + strlen(header) + strlen(responseBody) + 1;
+    const size_t size = strlen(statusLine) + strlen(header)  + 1;
     char *str = malloc(size);
     strcpy(str, statusLine);
     strcat(str, header);
-    strcat(str, responseBody);
+    //strcat(str, responseBody);
 
-    free(responseBody);
+    //free(responseBody); //todo dumb ass ?
     free(header);
     free(statusLine);
 
@@ -713,7 +697,11 @@ void *createServer(const int server_fd, char *buffer) {
 
     buildResponseStatusLine(serverRequest, serverResponse);
 
-    char *response = getServerResponse(serverResponse);
+    ResponseBody *responseBody = malloc(sizeof(ResponseBody));
+    responseBody->body = NULL;  // Initialize the pointer to NULL for safety
+   responseBody->size = 0;
+
+    char *response = getServerResponse(serverResponse, responseBody);
 
     // Write and send response to the client
     const long writeRequestClient = write(new_socket, response, strlen(response));
@@ -724,6 +712,19 @@ void *createServer(const int server_fd, char *buffer) {
         exit(EXIT_FAILURE);
     }
     printf("Response sent to client\n%s\n", response);
+
+    printf("responseBody->size %d\n", responseBody->size);
+    // responseBody->body = "Hello world";
+
+    printf("responseBody->body %s\n", responseBody->body);
+
+    const long writeRequestClient2 = write(new_socket, responseBody->body, responseBody->size);
+    if (writeRequestClient2 < 0) {
+        perror("Send Response 2 failed");
+        close(new_socket);
+        close(server_fd);
+        exit(EXIT_FAILURE);
+    }
 
     free(response);
     freeServerResponse(serverResponse);
