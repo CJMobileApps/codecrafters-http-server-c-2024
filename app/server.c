@@ -321,7 +321,6 @@ char *getHeader(const ServerResponse *serverResponse) {
 char *getServerResponse(const ServerResponse *serverResponse, ResponseBody *responseBody) {
     char *statusLine = getStatusLine(serverResponse);
 
-
     getResponseBody(serverResponse, responseBody);
 
     printf("stirng length of *responseBody %d\n", responseBody->size);
@@ -708,29 +707,16 @@ void *createServer(const int server_fd, char *buffer) {
         exit(EXIT_FAILURE);
     }
     printf("Response sent to client\n%s\n", response);
-
     printf("responseBody->size %d\n", responseBody->size);
-    // responseBody->body = "Hello world";
-
     printf("responseBody->body %s\n", responseBody->body);
 
-    FILE *file = fopen("compressed_data.gz", "wb");
-    if (file == NULL) {
-        perror("Failed to open file");
-        exit(EXIT_FAILURE);
-    }
-    fwrite(responseBody->body, 1, responseBody->size, file);
-    fclose(file);
-
-    const long writeRequestClient2 = write(new_socket, responseBody->body, 1024);
+    const long writeRequestClient2 = write(new_socket, responseBody->body, responseBody->size);
     if (writeRequestClient2 < 0) {
         perror("Send Response 2 failed");
         close(new_socket);
         close(server_fd);
         exit(EXIT_FAILURE);
     }
-
-
 
     free(response);
     freeServerResponse(serverResponse);
